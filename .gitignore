@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated narration and local audio assets
+output/
+*.wav
+*.mp3
+*.flac
+
+# Downloaded model and editor/system files
+.cache/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
