@@ -19,28 +19,23 @@ def test_voice_cloner_availability_check():
     print(f"PASS: VoiceCloner availability check (is_available={available})")
 
 
-def test_voice_cloner_missing_file_handling():
-    """Verifies that VoiceCloner raises FileNotFoundError on non-existent input files."""
-    try:
-        VoiceCloner.clone(
-            input_audio_path="non_existent_input.wav",
-            ref_audio_path="input/actress.wav",
-        )
-        assert False, "Should have raised FileNotFoundError for missing input file"
-    except FileNotFoundError:
-        print("PASS: Missing input file raises FileNotFoundError correctly")
+def test_voice_cloner_missing_file_handling(tmp_path):
+    """Missing input and reference files fail before invoking OpenVoice."""
+    existing_file = tmp_path / "existing.wav"
+    existing_file.touch()
 
-    try:
+    with pytest.raises(FileNotFoundError):
         VoiceCloner.clone(
-            input_audio_path="input/actress.wav",
-            ref_audio_path="non_existent_ref.wav",
+            input_audio_path=str(tmp_path / "missing-input.wav"),
+            ref_audio_path=str(existing_file),
         )
-        assert False, "Should have raised FileNotFoundError for missing reference file"
-    except FileNotFoundError:
-        print("PASS: Missing reference file raises FileNotFoundError correctly")
+
+    with pytest.raises(FileNotFoundError):
+        VoiceCloner.clone(
+            input_audio_path=str(existing_file),
+            ref_audio_path=str(tmp_path / "missing-reference.wav"),
+        )
 
 
 if __name__ == "__main__":
-    test_voice_cloner_availability_check()
-    test_voice_cloner_missing_file_handling()
-    print("ALL VOICE CLONER TESTS PASSED.")
+    raise SystemExit(pytest.main([__file__]))

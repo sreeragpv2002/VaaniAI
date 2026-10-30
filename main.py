@@ -14,7 +14,7 @@ Key Features:
 import sys
 import argparse
 from pathlib import Path
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 import numpy as np
 
 # Ensure project root is in sys.path
@@ -58,6 +58,7 @@ def synthesize_narration(
     preview_only: bool = False,
     device: str = None,
     clone_voice: str = None,
+    progress_callback: Callable[[int, int, str], None] = None,
 ) -> str:
     """End-to-end pipeline orchestrating text analysis, emotion detection, TTS, and audio merging."""
     setup_logger()
@@ -83,6 +84,9 @@ def synthesize_narration(
     if not segments:
         print("Warning: No speech segments found in the input text.")
         return ""
+
+    if progress_callback:
+        progress_callback(0, len(segments), "Preparing narration...")
 
     # 3. Preview Mode
     if preview_only:
@@ -110,13 +114,18 @@ def synthesize_narration(
         device=device,
     )
 
+    if progress_callback:
+        progress_callback(0, len(segments), "Generating audio...")
+
     audio_segments_with_pauses: List[Tuple[np.ndarray, float]] = []
 
     # 6. Synthesize Each Segment
-    for seg in segments:
+    for index, seg in enumerate(segments, start=1):
         log_segment(seg, len(segments), engine_type=engine_type)
         audio_chunk = tts_engine.synthesize_segment(seg)
         audio_segments_with_pauses.append((audio_chunk, seg.pause_after_sec))
+        if progress_callback:
+            progress_callback(index, len(segments), f"Generated segment {index} of {len(segments)}")
 
     # 7. Stitch Audio Segments with Punctuation Pauses and Volume Normalization
     print(f"\n[Audio] Stitching {len(audio_segments_with_pauses)} segments with anti-click fading...")
@@ -129,6 +138,8 @@ def synthesize_narration(
 
     # 8. Export WAV File
     exported_file = AudioMerger.export_wav(str(final_output_path), final_audio, tts_engine.sample_rate)
+    if progress_callback:
+        progress_callback(len(segments), len(segments), "Audio is ready")
     duration_sec = len(final_audio) / tts_engine.sample_rate
 
     print("\n" + "=" * 80)

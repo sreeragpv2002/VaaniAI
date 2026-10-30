@@ -1,164 +1,134 @@
-# Expressive Text-to-Speech Narration System (English & Malayalam)
+# VaaniAI — English and Malayalam Narration
 
-A modular, production-ready Text-to-Speech (TTS) narration system designed for **audiobooks, stories, and long-form reading** in both **English (Indian English style)** and **Malayalam**.
+VaaniAI turns stories and other long-form text into spoken audio in English (Indian English voices) and Malayalam. It includes a small local browser interface and a command-line interface.
 
----
+## What it does
 
-## 🌟 Core Architecture & Principles
+- Enter or paste text, choose English or Malayalam, and select a female or male narrator.
+- When Malayalam is selected, the UI checks that the text contains Malayalam script and blocks generation if it appears to be English; the server enforces the same check.
+- Split text into sentences and analyze punctuation, dialogue, and common emotional cues.
+- Use inline delivery tags such as `[whispering]`, `[excited]`, `[slowly]`, and `[pause]`. Tags are removed from the text sent to speech synthesis.
+- Add pauses between sentences, smooth audio segment edges, normalize peak level, and export WAV.
+- Track sentence-by-sentence generation progress in the browser UI, listen to the result, see its saved path, or download the WAV.
+- Use Edge TTS in the browser app and CLI. The CLI also supports the optional local Indic-Parler engine and optional OpenVoice conversion.
 
-### 1. Consistent Base Voice (No Voice Switching)
-- Throughout an entire chapter or book, the **exact same base voice** is maintained.
-- **English:**
-  - `male`: `en-IN-PrabhatNeural` (Edge-TTS) / `Thoma` (Indic-Parler)
-  - `female`: `en-IN-NeerjaNeural` (Edge-TTS) / `Mary` (Indic-Parler)
-- **Malayalam:**
-  - `male`: `ml-IN-MidhunNeural` (Edge-TTS) / `Harish` (Indic-Parler)
-  - `female`: `ml-IN-SobhanaNeural` (Edge-TTS) / `Anjali` (Indic-Parler)
-- Character dialogue and narration are spoken by the **same narrator**, with only pitch, pace, intensity, pauses, and emotional coloring varying naturally according to context.
+Emotion and delivery are approximate. Edge TTS changes supported rate, pitch, and volume settings; Indic-Parler uses descriptive prompts. Vocalization tags do not create separate sound effects such as a cough or laugh, and neither engine guarantees an exact performance or timbre.
 
-### 2. Emotion & Vocal Expression Tags
-Supports explicit inline tags:
-- **Emotion:** `[weak]`, `[angry]`, `[bored]`, `[menacing]`, `[playful]`, `[tired]`, `[excited]`
-- **Vocalizations:** `[clears throat]`, `[coughing]`, `[chuckling]`, `[sighing]`, `[sniffling]`, `[yawning]`, `[laughing]`, `[sharp exhale]`, `[scoffing]`, `[humming]`, `[panting]`, `[gasping]`
-- **Delivery:** `[whispering]`, `[singing]`, `[slowly]`, `[softly]`, `[pause]`, `[voice breaking]`
-- **Character Voice:** `[sleepy drowsy voice]`
+## Browser interface
 
-> **Important:** Tags are automatically **extracted and stripped** from the spoken text so they are **never spoken aloud**. They are mapped directly into acoustic prosody and conditioning prompts.
+The interface uses a dark, monochrome, monospace layout with a purple accent and a lightweight animated particle backdrop. The centered narration form is transparent so the enlarged particle ring remains visible behind it, with project information in a responsive footer. It is plain HTML, CSS, and JavaScript served by Python's standard library; no Node.js or frontend package install is needed. The web interface currently generates with Edge TTS.
 
-### 3. Automatic Context & Sentence Analysis
-If no explicit tags are present, the system automatically analyzes:
-- Sentence semantics, emotional sentiment, and dialogue attributions (*sighed*, *shouted*, *നിലവിളിച്ചു*, *ചിരിച്ചു*).
-- Punctuation-aware pauses:
-  - Period (`.`): ~350ms
-  - Question (`?`): ~450ms with upward intonation
-  - Exclamation (`!`): ~450ms with punchy cadence
-  - Ellipsis (`...`): ~850ms dramatic suspense pause
-  - Clause / Comma (`,`): ~200ms breathing pause
-- Anti-leak smoothing: Prevents intense character anger from spilling into subsequent calm landscape descriptions.
+The app binds to `127.0.0.1` on port `8000` and saves generated files under `output/web/`.
 
-### 4. Audio Quality & Engineering
-- **Anti-click Hann Window Tapering:** 12ms cosine fading prevents clicks and phase pops at chunk boundaries.
-- **Punctuation-Based Gap Insertion:** Dynamic silence injection between chunks.
-- **Volume Normalization:** Peak & RMS normalization to -1.5 dBFS prevents distortion and clipping.
+## Technology
 
----
+| Part | Technology |
+| --- | --- |
+| Application and CLI | Python |
+| Browser UI and local server | HTML, CSS, JavaScript, Python `http.server` |
+| Text and emotion processing | Project's Python sentence, punctuation, and emotion modules |
+| Default speech engine | Edge TTS (`edge-tts`) |
+| MP3 decoding | FFmpeg bundled by `imageio-ffmpeg` |
+| Audio processing | NumPy and SoundFile |
+| Optional local speech engine | AI4Bharat Indic-Parler-TTS, PyTorch, Transformers |
+| Optional voice conversion | OpenVoice CLI |
 
-## 📁 Project Structure
+## Requirements
 
-```text
-MalayalamTTS/
-├── main.py                  # Primary CLI and orchestration entrypoint
-├── requirements.txt         # Dependencies
-├── README.md                # System documentation
-├── .env.example             # Configuration defaults
-│
-├── config/
-│   ├── settings.py          # Global path and audio settings
-│   ├── english_config.py    # English voices, abbreviations, pause timings
-│   └── malayalam_config.py  # Malayalam voices, abbreviations, pause timings
-│
-├── src/
-│   ├── text_processing/
-│   │   ├── text_normalizer.py     # Tag stripping, Unicode NFC, quote normalization
-│   │   ├── punctuation_handler.py # Punctuation classification & pause calculation
-│   │   └── sentence_splitter.py   # Paragraph and sentence boundary segmentation
-│   │
-│   ├── emotion/
-│   │   ├── tag_mapper.py          # Registry of emotion/vocalization tags to prosody
-│   │   ├── emotion_analyzer.py    # Multilingual emotion lexicons (EN & ML)
-│   │   └── context_analyzer.py    # Contextual decay and prosody derivation
-│   │
-│   ├── languages/
-│   │   ├── english.py             # Indian English pipeline coordinator
-│   │   └── malayalam.py           # Malayalam pipeline coordinator
-│   │
-│   ├── audio/
-│   │   ├── tts_engine.py          # Edge-TTS and Indic-Parler-TTS engines
-│   │   ├── audio_processor.py     # Fade-in/out smoothing and volume normalization
-│   │   └── audio_merger.py        # Segment concatenation and WAV export
-│   │
-│   └── utils/
-│       ├── file_manager.py        # Path resolution and language detection
-│       └── logger.py              # Formatted terminal progress output
-│
-├── input/
-│   ├── english/                   # English text files (e.g., english_story.txt)
-│   └── malayalam/                 # Malayalam text files (e.g., malayalam_story.txt)
-│
-├── output/
-│   ├── english/                   # Exported English audio WAVs
-│   └── malayalam/                 # Exported Malayalam audio WAVs
-│
-└── tests/
-    ├── test_emotions.py           # Tag parsing, prosody mapping & tag stripping tests
-    ├── test_english.py            # English sentence boundary and consistency tests
-    └── test_malayalam.py          # Malayalam script, dialogue and consistency tests
+### Required for the browser UI and default Edge TTS engine
+
+- Python 3.10 or newer is recommended.
+- Internet access is required while Edge TTS generates speech.
+- Install the core Python packages from `requirements.txt`.
+
+### Optional
+
+- `requirements-parler.txt`: PyTorch, Transformers, and Indic-Parler-TTS for the local Parler engine. The model is downloaded the first time it is used; device and memory needs depend on the selected model and machine.
+- `requirements-voice-cloning.txt`: OpenVoice CLI for voice conversion through the CLI's `--clone-voice` option.
+- `requirements-dev.txt`: Pytest for running tests.
+
+## Setup on Windows
+
+From the project folder in PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
----
+### Start the browser app
 
-## 🚀 Quickstart & Usage
-
-### 1. Instant Preview Mode (Inspect tags, emotions, and prosody without waiting)
 ```powershell
-# English Story Preview
-.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --lang en --preview
+.\.venv\Scripts\python.exe app.py
+```
 
-# Malayalam Story Preview
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Paste or type text, choose a language and voice, and click **Generate narration**. Keep the terminal open while the app is running; press `Ctrl+C` there to stop it.
+
+### Use the CLI
+
+Preview segmentation and emotion analysis without generating audio:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --lang en --preview
 .\.venv\Scripts\python.exe main.py --file input/malayalam/malayalam_story.txt --lang ml --preview
 ```
 
-### 2. Runtime Interactive Voice Selection (Choose 1 or 2)
-When running without specifying `--voice`, the system prompts you interactively at runtime:
+Generate speech from a file or direct text:
 
 ```powershell
-.\.venv\Scripts\python.exe main.py --file input/malayalam/malayalam_story.txt --lang ml
+.\.venv\Scripts\python.exe main.py --file input/malayalam/malayalam_story.txt --lang ml --voice female
+.\.venv\Scripts\python.exe main.py --text "[whispering] Stay close." --lang en --voice male
 ```
-Terminal prompt:
+
+Select `--voice female` or `--voice male`. If omitted in an interactive terminal, the CLI prompts for a voice. Use `--output path.wav` to choose an output file. Run `main.py --help` for all CLI options.
+
+### Install optional CLI engines
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-parler.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-voice-cloning.txt
+```
+
+Parler example:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --lang en --engine indic-parler --voice male
+```
+
+Voice conversion example:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --lang en --voice female --clone-voice input/actress.wav
+```
+
+Use a reference recording you have permission to use.
+
+## Project layout
+
 ```text
-=================================================================
- SELECT NARRATOR VOICE FOR MALAYALAM
-=================================================================
-  [1] Female Voice - Sobhana / Anjali (Authentic Kerala storytelling style)
-  [2] Male Voice   - Midhun / Harish
------------------------------------------------------------------
-Enter choice [1 for Female, 2 for Male] (Default: 1): 
-```
-- Type **`1`** for **Female** voice (`Sobhana` / `Neerja`)
-- Type **`2`** for **Male** voice (`Midhun` / `Prabhat`)
-
-You can also pass `1` or `2` directly via the `--voice` flag:
-```powershell
-# Select Female voice using '1'
-.\.venv\Scripts\python.exe main.py --file input/malayalam/malayalam_story.txt --lang ml --voice 1
-
-# Select Male voice using '2'
-.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --lang en --voice 2
-```
-
-### 4. Customizing Pace, Expressiveness, and Pause Multiplier
-```powershell
-.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --speed moderate --expressiveness dramatic --pause-scale 1.2
+MalayalamTTS/
+├── app.py                         # Local browser app
+├── main.py                        # CLI and synthesis orchestration
+├── requirements.txt               # Core dependencies
+├── requirements-parler.txt        # Optional local Parler dependencies
+├── requirements-voice-cloning.txt # Optional voice conversion dependency
+├── requirements-dev.txt           # Test dependency
+├── config/                        # Voice, language, and audio settings
+├── input/                         # Example English and Malayalam text
+├── output/                        # Generated WAV files (ignored by Git)
+├── src/
+│   ├── audio/                     # Synthesis engines and audio processing
+│   ├── emotion/                   # Tag mapping and emotion analysis
+│   ├── languages/                 # English and Malayalam pipelines
+│   ├── text_processing/           # Normalization and sentence splitting
+│   └── utils/                     # File management and logging
+└── tests/                         # Unit tests
 ```
 
-### 5. Running with Local Offline AI4Bharat Indic-Parler Model
-```powershell
-.\.venv\Scripts\python.exe main.py --file input/english/english_story.txt --engine indic-parler --voice male
-```
-
-### 6. Synthesize Direct Text with Tags
-```powershell
-.\.venv\Scripts\python.exe main.py --text "[whispering] 'Stay low,' she warned. [excited] 'We made it across!'" --voice female
-```
-
----
-
-## 🧪 Running Unit Tests
-
-Run the test suite to verify tag parsing, sentence boundary handling, and audio prosody:
+## Run tests
 
 ```powershell
-.\.venv\Scripts\python.exe tests/test_emotions.py
-.\.venv\Scripts\python.exe tests/test_english.py
-.\.venv\Scripts\python.exe tests/test_malayalam.py
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
 ```

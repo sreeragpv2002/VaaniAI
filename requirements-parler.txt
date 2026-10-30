@@ -1,0 +1,5 @@
+# Optional local Indic-Parler engine
+# Requires a compatible PyTorch build for your OS and CUDA setup.
+torch>=2.0.0
+transformers>=4.40.0
+parler_tts>=0.2.0

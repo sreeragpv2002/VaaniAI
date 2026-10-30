@@ -6,20 +6,12 @@ Ensures strict consistency of base voice identity across all synthesized segment
 
 from abc import ABC, abstractmethod
 from typing import Optional
-import io
 import asyncio
+import subprocess
 import numpy as np
-import soundfile as sf
-import torch
 
-from config.english_config import (
-    EDGE_TTS_VOICES as EN_EDGE_VOICES,
-    PARLER_TTS_SPEAKERS as EN_PARLER_SPEAKERS,
-)
-from config.malayalam_config import (
-    EDGE_TTS_VOICES as ML_EDGE_VOICES,
-    PARLER_TTS_SPEAKERS as ML_PARLER_SPEAKERS,
-)
+from config.english_config import EDGE_TTS_VOICES as EN_EDGE_VOICES
+from config.malayalam_config import EDGE_TTS_VOICES as ML_EDGE_VOICES
 from src.languages.english import ProcessedSegment
 
 
@@ -65,9 +57,24 @@ class EdgeTTSEngine(BaseTTSEngine):
         if not mp3_bytes:
             return np.zeros(int(self.sample_rate * 0.1), dtype=np.float32)
 
-        audio_data, sr = sf.read(io.BytesIO(mp3_bytes), dtype="float32")
-        self.sample_rate = sr
-        return audio_data
+        return self._decode_mp3(mp3_bytes)
+
+    def _decode_mp3(self, mp3_bytes: bytes) -> np.ndarray:
+        import imageio_ffmpeg
+
+        try:
+            result = subprocess.run(
+                [imageio_ffmpeg.get_ffmpeg_exe(), "-i", "pipe:0", "-f", "f32le",
+                 "-acodec", "pcm_f32le", "-ac", "1", "-ar", str(self.sample_rate), "pipe:1"],
+                input=mp3_bytes,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            detail = exc.stderr.decode(errors="replace").strip()
+            raise RuntimeError(f"Failed to decode Edge TTS MP3: {detail}") from exc
+        return np.frombuffer(result.stdout, dtype="<f4").copy()
 
     def synthesize_segment(self, segment: ProcessedSegment) -> np.ndarray:
         return asyncio.run(self._synthesize_async(segment))
@@ -86,7 +93,10 @@ class IndicParlerTTSEngine(BaseTTSEngine):
         model_id: str = DEFAULT_MODEL_ID,
         device: Optional[str] = None,
     ):
+        import torch
+
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
+        self._torch = torch
         from parler_tts import ParlerTTSForConditionalGeneration
         from transformers import AutoTokenizer
 
@@ -110,7 +120,7 @@ class IndicParlerTTSEngine(BaseTTSEngine):
         desc_inputs = self._get_description_inputs(segment.parler_description)
         text_inputs = self.tokenizer(segment.spoken_text, return_tensors="pt").to(self.device)
 
-        with torch.inference_mode():
+        with self._torch.inference_mode():
             output = self.model.generate(
                 input_ids=desc_inputs.input_ids,
                 attention_mask=desc_inputs.attention_mask,
